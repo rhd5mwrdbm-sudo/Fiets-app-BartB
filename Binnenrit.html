@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Binnenrit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: één scherm voor op de stuurstang van de iPad. Grote cijfers bovenaan, workoutprofiel in het midden, grote knoppen onderaan.
+   Kleuren: donker, blauwgrijs. De zonekleuren (herstel tot sprint) komen overeen met de vermogenszones ten opzichte van FTP. */
+:root {
+  --bg: #0f1319;
+  --surface: #171d26;
+  --surface-2: #202836;
+  --line: #2b3544;
+  --fg: #e9eef5;
+  --muted: #8b97a8;
+  --accent: #5ab0ff;
+  --accent-ink: #06121f;
+  --danger: #ff6b6b;
+  --z1: #6f7b8c;
+  --z2: #4aa3ff;
+  --z3: #3fcf8e;
+  --z4: #f2c94c;
+  --z5: #ff9a3c;
+  --z6: #ff5d5d;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f1f4f8;
+    --surface: #ffffff;
+    --surface-2: #e8edf3;
+    --line: #d2dae5;
+    --fg: #141a22;
+    --muted: #596577;
+    --accent: #0b66c3;
+    --accent-ink: #ffffff;
+    --danger: #c62f2f;
+    --z1: #7d8897;
+    --z2: #1f7fe0;
+    --z3: #12a869;
+    --z4: #c99a0a;
+    --z5: #e07410;
+    --z6: #d63b3b;
+    color-scheme: light;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.4 var(--font-body);
+  -webkit-text-size-adjust: 100%;
+}
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  display: grid;
+  gap: 14px;
+}
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+h1 { margin: 0; font: 700 30px/1 var(--font-display); letter-spacing: .02em; text-transform: uppercase; }
+.status { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+.chip i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+.chip.on i { background: var(--z3); }
+.chip b { color: var(--fg); font-weight: 600; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+.setup { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 16px; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > span, .lab { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+select, input[type=number], textarea {
+  font: inherit; color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 46px; max-width: 100%;
+}
+select { min-width: 0; }
+input[type=number] { width: 110px; font-variant-numeric: tabular-nums; }
+.grow { flex: 1 1 260px; }
+.btn {
+  font: 600 16px var(--font-body); min-height: 52px; padding: 0 20px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); cursor: pointer;
+  touch-action: manipulation;
+}
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.warn { color: var(--danger); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.small { min-height: 46px; padding: 0 14px; font-size: 15px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.conn { display: flex; flex-wrap: wrap; gap: 10px; }
+.msg { margin: 0; min-height: 1.4em; color: var(--muted); font-size: 15px; }
+.metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 2px; grid-column: span 2; min-width: 0; align-content: start; }
+.tile.wide { grid-column: span 3; }
+.val { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.val b { font: 700 clamp(44px, 9vw, 84px)/1 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.tile.wide .val b { font-size: clamp(56px, 13vw, 120px); }
+.val small { font: 600 18px var(--font-display); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.sub { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
+.zone { display: inline-block; justify-self: start; padding: 2px 10px; border-radius: 999px; font: 600 13px var(--font-body); color: #0b0f14; background: var(--z1); }
+.zone.z2 { background: var(--z2); } .zone.z3 { background: var(--z3); } .zone.z4 { background: var(--z4); } .zone.z5 { background: var(--z5); } .zone.z6 { background: var(--z6); }
+.chartwrap { padding: 8px; }
+canvas { width: 100%; height: 190px; display: block; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.controls .spacer { flex: 1 1 20px; }
+.bias { display: inline-flex; align-items: center; gap: 8px; }
+.bias output { min-width: 64px; text-align: center; font: 600 22px var(--font-display); font-variant-numeric: tabular-nums; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 15px; }
+.toggle input { width: 20px; height: 20px; }
+details.editor summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+textarea { width: 100%; min-height: 220px; font: 14px/1.5 ui-monospace, "SF Mono", Menlo, monospace; resize: vertical; margin-top: 10px; }
+.hint { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
+.err { color: var(--danger); font-size: 14px; margin: 6px 0 0; }
+.summary h2 { margin: 0 0 10px; font: 700 26px var(--font-display); text-transform: uppercase; letter-spacing: .03em; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.stats div { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+.stats b { display: block; font: 700 32px/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) {
+  .tile.wide { grid-column: span 6; }
+  .tile { grid-column: span 2; }
+}
+@media (prefers-reduced-motion: reduce) { .btn:active { transform: none; } }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <h1>Binnenrit</h1>
+    <div class="status" aria-live="polite">
+      <span class="chip" id="chipTrainer"><i></i><b>KICKR</b><span id="trainerTxt">niet verbonden</span></span>
+      <span class="chip" id="chipHr"><i></i><b>Hartslag</b><span id="hrTxt">geen band</span></span>
+    </div>
+  </header>
+
+  <section class="panel setup">
+    <label class="field grow"><span>Workout</span><select id="preset"></select></label>
+    <label class="field"><span>FTP (W)</span><input id="ftp" type="number" inputmode="numeric" min="50" max="600" step="1" value="230"></label>
+    <div class="conn">
+      <button class="btn primary" id="btnConnect" type="button">Verbind KICKR</button>
+      <button class="btn small" id="btnHr" type="button">Hartslagband</button>
+      <button class="btn small" id="btnDemo" type="button">Demo</button>
+    </div>
+    <label class="toggle" id="fastWrap" hidden><input id="fast" type="checkbox"> Demo ×10 sneller</label>
+    <p class="msg" id="msg" style="flex-basis:100%" aria-live="polite"></p>
+  </section>
+
+  <section class="metrics" aria-label="Live gegevens">
+    <div class="tile wide">
+      <span class="lab">Vermogen</span>
+      <div class="val"><b id="vPower">—</b><small>W</small></div>
+      <span class="sub" id="vTarget">doel —</span>
+    </div>
+    <div class="tile wide">
+      <span class="lab" id="vSegName">Workout</span>
+      <div class="val"><b id="vSegTime">0:00</b></div>
+      <span class="zone" id="vZone">Z1</span>
+      <span class="sub" id="vNext">&nbsp;</span>
+    </div>
+    <div class="tile">
+      <span class="lab">Cadans</span>
+      <div class="val"><b id="vCad">—</b><small>rpm</small></div>
+      <span class="sub" id="vSpeed">&nbsp;</span>
+    </div>
+    <div class="tile">
+      <span class="lab">Hartslag</span>
+      <div class="val"><b id="vHr">—</b><small>bpm</small></div>
+      <span class="sub">&nbsp;</span>
+    </div>
+    <div class="tile">
+      <span class="lab">Totaal</span>
+      <div class="val"><b id="vTotal">0:00</b></div>
+      <span class="sub" id="vTotalOf">van 0:00</span>
+    </div>
+  </section>
+
+  <section class="panel chartwrap"><canvas id="chart" aria-label="Workoutprofiel met gereden vermogen"></canvas></section>
+
+  <section class="controls">
+    <button class="btn primary" id="btnStart" type="button">Start</button>
+    <button class="btn" id="btnPause" type="button" hidden>Pauze</button>
+    <button class="btn" id="btnSkip" type="button" hidden>Volgend blok</button>
+    <button class="btn warn" id="btnStop" type="button" hidden>Stop</button>
+    <span class="spacer"></span>
+    <div class="bias" role="group" aria-label="Intensiteit">
+      <button class="btn small" id="biasDown" type="button" aria-label="5 procent lager">−5%</button>
+      <output id="biasVal" aria-live="polite">+0%</output>
+      <button class="btn small" id="biasUp" type="button" aria-label="5 procent hoger">+5%</button>
+    </div>
+    <label class="toggle"><input id="sound" type="checkbox" checked> Pieptonen</label>
+  </section>
+
+  <section class="panel summary" id="summary" hidden>
+    <h2>Rit klaar</h2>
+    <div class="stats" id="stats"></div>
+    <div class="controls">
+      <button class="btn primary" id="btnTcx" type="button">Download TCX</button>
+      <button class="btn" id="btnCopy" type="button">Kopieer TCX</button>
+      <button class="btn" id="btnClose" type="button">Sluiten</button>
+    </div>
+    <p class="hint">Het TCX-bestand kun je uploaden bij Strava, TrainingPeaks of Intervals.icu.</p>
+  </section>
+
+  <details class="panel editor" id="editor">
+    <summary>Workout bewerken</summary>
+    <textarea id="wtext" spellcheck="false" aria-label="Workout in tekstvorm"></textarea>
+    <p class="err" id="werr"></p>
+    <p class="hint">Eén blok per regel: duur, vermogen, naam. Bijvoorbeeld <code>5:00 50-70% Warming-up</code>. Vermogen in % van FTP of in watt (<code>200w</code>). Herhalen: <code>6x 3:00 110% Hard / 3:00 55% Rust</code>. Regels met # worden overgeslagen.</p>
+  </details>
+</main>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('binnenrit.' + k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('binnenrit.' + k, v); } catch (e) {} }
+};
+
+// <parser>
+const ZONES = [[56, 'z1', 'Herstel'], [76, 'z2', 'Duur'], [91, 'z3', 'Tempo'], [106, 'z4', 'Drempel'], [121, 'z5', 'VO2'], [Infinity, 'z6', 'Sprint']];
+function zoneOf(p) { return ZONES.find(z => p < z[0]); }
+function parseDur(s) {
+  let m;
+  if ((m = s.match(/^(\d+):(\d{2})$/))) return +m[1] * 60 + +m[2];
+  if ((m = s.match(/^(\d+(?:\.\d+)?)\s*(?:m|min)$/i))) return Math.round(+m[1] * 60);
+  if ((m = s.match(/^(\d+)\s*s$/i))) return +m[1];
+  return null;
+}
+function parsePow(s, ftp) {
+  const m = s.match(/^(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?\s*(%|w)$/i);
+  if (!m) return null;
+  let a = +m[1], b = m[2] !== undefined ? +m[2] : a;
+  if (m[3].toLowerCase() === 'w') { a = a / ftp * 100; b = b / ftp * 100; }
+  return [a, b];
+}
+function parseSeg(str, ftp) {
+  const parts = str.trim().split(/\s+/);
+  const dur = parseDur(parts[0] || '');
+  const pw = parts[1] ? parsePow(parts[1], ftp) : null;
+  if (dur === null || !pw || dur <= 0) return null;
+  return { dur, lo: pw[0], hi: pw[1], label: parts.slice(2).join(' ') };
+}
+function parseWorkout(text, ftp) {
+  const segs = [], errors = [];
+  text.split(/\r?\n/).forEach((raw, i) => {
+    const line = raw.replace(/#.*$/, '').trim();
+    if (!line) return;
+    const rep = line.match(/^(\d+)\s*x\s+(.+)$/i);
+    if (rep) {
+      const n = +rep[1];
+      const parts = rep[2].split('/').map(p => parseSeg(p, ftp));
+      if (n < 1 || n > 99 || parts.some(p => !p)) { errors.push('Regel ' + (i + 1) + ': herhaling niet te lezen'); return; }
+      for (let r = 1; r <= n; r++) parts.forEach(p => segs.push({ ...p, label: (p.label ? p.label + ' ' : '') + r + '/' + n }));
+    } else {
+      const s = parseSeg(line, ftp);
+      if (!s) { errors.push('Regel ' + (i + 1) + ': verwacht bijvoorbeeld "5:00 50-70% Warming-up"'); return; }
+      segs.push(s);
+    }
+  });
+  const starts = []; let total = 0;
+  segs.forEach(s => { starts.push(total); total += s.dur; });
+  return { segs, starts, total, errors };
+}
+function fmt(s) {
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0');
+}
+// </parser>
+
+const PRESETS = [
+  { id: 'ss', name: 'Sweet spot 3×10', text: `# Sweet spot 3x10
+10:00 45-65% Warming-up
+3x 10:00 90% Sweet spot / 4:00 55% Rust
+5:00 50% Uitfietsen` },
+  { id: 'vo2', name: 'VO2 30/30', text: `# 30 seconden hard, 30 seconden rust
+10:00 45-65% Warming-up
+3:00 75% Opbouw
+10x 0:30 120% Hard / 0:30 50% Rust
+5:00 55% Herstel
+10x 0:30 120% Hard / 0:30 50% Rust
+8:00 50% Uitfietsen` },
+  { id: 'thr', name: 'Drempel 2×15', text: `10:00 45-65% Warming-up
+2x 15:00 95% Drempel / 5:00 55% Rust
+5:00 50% Uitfietsen` },
+  { id: 'v44', name: 'VO2 4×4', text: `10:00 45-65% Warming-up
+4x 4:00 110% Interval / 4:00 50% Rust
+6:00 50% Uitfietsen` },
+  { id: 'pyr', name: 'Pyramide', text: `8:00 45-65% Warming-up
+1:00 110% Piek
+1:00 55% Rust
+2:00 105% Piek
+2:00 55% Rust
+3:00 100% Piek
+3:00 55% Rust
+4:00 95% Top
+4:00 55% Rust
+3:00 100% Piek
+3:00 55% Rust
+2:00 105% Piek
+2:00 55% Rust
+1:00 110% Piek
+5:00 50% Uitfietsen` }
+];
+
+/* ---------- toestand ---------- */
+let ftp = +store.get('ftp', 230) || 230;
+let W = { segs: [], starts: [], total: 0, errors: [] };
+let running = false, paused = false, t = 0, idx = 0, bias = 0, lastTick = performance.now();
+let lastSent = null, lastLogSec = -1, lastBeepSec = -1, startedAt = null, log = [];
+const live = { power: null, cad: null, hr: null, speed: null };
+const ble = { dev: null, cp: null, ready: false, q: Promise.resolve(), hrDev: null, hrOn: false, lastReq: 0 };
+const demo = { on: false, timer: null, target: 0, p: 0, hr: 62, active: false };
+
+function msg(s) { $('#msg').textContent = s || ''; }
+function segIndexAt(x) {
+  for (let i = W.segs.length - 1; i >= 0; i--) if (x >= W.starts[i]) return i;
+  return 0;
+}
+function pctAt(s, within) { return s.lo + (s.hi - s.lo) * Math.min(1, within / s.dur); }
+function targetW() {
+  const s = W.segs[idx]; if (!s) return 0;
+  return Math.max(0, Math.round(pctAt(s, t - W.starts[idx]) * (1 + bias / 100) * ftp / 100));
+}
+
+/* ---------- workout laden ---------- */
+function loadText(text) {
+  W = parseWorkout(text, ftp);
+  $('#werr').textContent = W.errors.join(' · ');
+  idx = 0; t = 0;
+  render(); draw();
+}
+function initPresets() {
+  const sel = $('#preset');
+  PRESETS.forEach(p => {
+    const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; sel.appendChild(o);
+  });
+  const c = document.createElement('option'); c.value = 'custom'; c.textContent = 'Eigen workout'; sel.appendChild(c);
+  const saved = store.get('preset', 'ss');
+  const savedText = store.get('text', '');
+  if (saved === 'custom' && savedText) { sel.value = 'custom'; $('#wtext').value = savedText; }
+  else { const p = PRESETS.find(x => x.id === saved) || PRESETS[0]; sel.value = p.id; $('#wtext').value = p.text; }
+  loadText($('#wtext').value);
+}
+$('#preset').addEventListener('change', e => {
+  if (running) { e.target.value = store.get('preset', 'ss'); return; }
+  const p = PRESETS.find(x => x.id === e.target.value);
+  if (p) { $('#wtext').value = p.text; store.set('preset', p.id); loadText(p.text); }
+});
+$('#wtext').addEventListener('input', e => {
+  $('#preset').value = 'custom';
+  store.set('preset', 'custom'); store.set('text', e.target.value);
+  loadText(e.target.value);
+});
+$('#ftp').value = ftp;
+$('#ftp').addEventListener('change', e => {
+  const v = Math.round(+e.target.value);
+  if (!(v >= 50 && v <= 600)) { e.target.value = ftp; return; }
+  ftp = v; store.set('ftp', v);
+  const keepT = t, keepIdx = idx;
+  W = parseWorkout($('#wtext').value, ftp); $('#werr').textContent = W.errors.join(' · ');
+  t = keepT; idx = keepIdx;
+  if (running) applyTarget(true);
+  render(); draw();
+});
+
+/* ---------- Bluetooth: FTMS ---------- */
+function parseBikeData(dv) {
+  let o = 0; const f = dv.getUint16(o, true); o += 2; const r = {};
+  if (!(f & 0x1)) { r.speed = dv.getUint16(o, true) / 100; o += 2; }
+  if (f & 0x2) o += 2;
+  if (f & 0x4) { r.cad = dv.getUint16(o, true) / 2; o += 2; }
+  if (f & 0x8) o += 2;
+  if (f & 0x10) o += 3;
+  if (f & 0x20) o += 2;
+  if (f & 0x40) { r.power = dv.getInt16(o, true); o += 2; }
+  if (f & 0x80) o += 2;
+  if (f & 0x100) o += 5;
+  if (f & 0x200) { r.hr = dv.getUint8(o); o += 1; }
+  return r;
+}
+function updateLive(o) {
+  if (o.power !== undefined) live.power = o.power;
+  if (o.cad !== undefined) live.cad = o.cad;
+  if (o.speed !== undefined) live.speed = o.speed;
+  if (o.hr !== undefined && o.hr > 0 && !ble.hrOn) live.hr = o.hr;
+  renderLive();
+}
+function cpWrite(bytes) {
+  const run = async () => {
+    if (!ble.cp || !ble.ready) throw new Error('geen verbinding met de KICKR');
+    const v = new Uint8Array(bytes);
+    if (ble.cp.writeValueWithResponse) await ble.cp.writeValueWithResponse(v); else await ble.cp.writeValue(v);
+  };
+  const p = ble.q.then(run);
+  ble.q = p.catch(() => {});
+  return p;
+}
+function onCp(e) {
+  const dv = e.target.value;
+  if (dv.getUint8(0) !== 0x80) return;
+  const req = dv.getUint8(1), res = dv.getUint8(2);
+  if (res === 5 && Date.now() - ble.lastReq > 2000) {
+    ble.lastReq = Date.now();
+    cpWrite([0x00]).then(() => running && !paused && applyTarget(true)).catch(() => {});
+  } else if (res >= 2 && res <= 4 && req !== 0x07) {
+    msg('De KICKR gaf melding ' + res + ' op commando ' + req + '.');
+  }
+}
+async function bleSetup(dev) {
+  const server = await dev.gatt.connect();
+  const svc = await server.getPrimaryService(0x1826);
+  const data = await svc.getCharacteristic(0x2ad2);
+  data.addEventListener('characteristicvaluechanged', e => updateLive(parseBikeData(e.target.value)));
+  await data.startNotifications();
+  ble.cp = await svc.getCharacteristic(0x2ad9);
+  ble.cp.addEventListener('characteristicvaluechanged', onCp);
+  await ble.cp.startNotifications();
+  ble.ready = true;
+  await cpWrite([0x00]);
+}
+function onDisc() {
+  ble.ready = false;
+  setChips();
+  if (running && !paused) { paused = true; renderControls(); }
+  msg('Verbinding met de KICKR verbroken. Tik op Verbind KICKR om opnieuw te verbinden.');
+}
+async function connectTrainer() {
+  if (!('bluetooth' in navigator)) return;
+  if (demo.on) demoStop();
+  try {
+    let ok = false;
+    if (ble.dev) { try { msg('Opnieuw verbinden…'); await bleSetup(ble.dev); ok = true; } catch (e) { ok = false; } }
+    if (!ok) {
+      msg('Kies je KICKR in het venster.');
+      const dev = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [0x1826] }, { services: [0x1818] }, { namePrefix: 'KICKR' }],
+        optionalServices: [0x1826, 0x180d, 0x1818]
+      });
+      dev.addEventListener('gattserverdisconnected', onDisc);
+      ble.dev = dev;
+      await bleSetup(dev);
+    }
+    setChips();
+    msg(running ? 'Verbonden. Tik op Hervat om verder te gaan.' : 'KICKR verbonden. Kies een workout en tik op Start.');
+  } catch (e) {
+    ble.ready = false; setChips();
+    msg(e && e.name === 'NotFoundError' ? 'Geen apparaat gekozen.' : 'Verbinden mislukt. Sluit andere apps die de KICKR gebruiken (Wahoo, Zwift) en probeer opnieuw.');
+  }
+}
+async function connectHr() {
+  if (!('bluetooth' in navigator)) return;
+  try {
+    const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [0x180d] }] });
+    const server = await dev.gatt.connect();
+    const svc = await server.getPrimaryService(0x180d);
+    const ch = await svc.getCharacteristic(0x2a37);
+    ch.addEventListener('characteristicvaluechanged', e => {
+      const dv = e.target.value; const f = dv.getUint8(0);
+      live.hr = (f & 1) ? dv.getUint16(1, true) : dv.getUint8(1);
+      renderLive();
+    });
+    await ch.startNotifications();
+    ble.hrDev = dev; ble.hrOn = true;
+    dev.addEventListener('gattserverdisconnected', () => { ble.hrOn = false; live.hr = null; setChips(); renderLive(); });
+    setChips();
+  } catch (e) {
+    msg(e && e.name === 'NotFoundError' ? 'Geen hartslagband gekozen.' : 'Hartslagband verbinden mislukt.');
+  }
+}
+
+/* ---------- trainer-commando's (KICKR of demo) ---------- */
+async function trSetTarget(w) {
+  if (demo.on) { demo.target = w; return; }
+  const v = Math.max(0, Math.min(2000, Math.round(w)));
+  await cpWrite([0x05, v & 255, (v >> 8) & 255]);
+}
+async function trStart() { if (demo.on) { demo.active = true; return; } await cpWrite([0x07]); }
+async function trPause() { if (demo.on) { demo.active = false; return; } await cpWrite([0x08, 0x02]); }
+async function trStop() { if (demo.on) { demo.active = false; demo.target = 0; return; } await cpWrite([0x08, 0x01]); }
+async function applyTarget(force) {
+  const w = targetW();
+  if (!force && w === lastSent) return;
+  lastSent = w;
+  try { await trSetTarget(w); } catch (e) { msg('Kon het doelvermogen niet doorgeven: ' + e.message); }
+}
+
+/* ---------- demo ---------- */
+function demoStart() {
+  if (ble.ready) { try { ble.dev.gatt.disconnect(); } catch (e) {} }
+  demo.on = true; demo.p = 0; demo.hr = 62; demo.active = false; demo.target = 0;
+  $('#fastWrap').hidden = false;
+  demo.timer = setInterval(() => {
+    const goal = demo.active ? demo.target : 0;
+    demo.p += (goal - demo.p) * 0.4 + (goal ? (Math.random() - .5) * 6 : 0);
+    if (demo.p < 1) demo.p = 0;
+    const cad = goal ? 84 + (demo.p / ftp) * 10 + (Math.random() - .5) * 4 : 0;
+    demo.hr += ((58 + demo.p * 0.5) - demo.hr) * 0.04;
+    updateLive({ power: Math.round(demo.p), cad: Math.round(cad), hr: Math.round(demo.hr), speed: demo.p ? 18 + demo.p / 10 : 0 });
+  }, 500);
+  setChips(); msg('Demo actief: een gesimuleerde KICKR. Tik op Start.');
+}
+function demoStop() {
+  demo.on = false; clearInterval(demo.timer); $('#fastWrap').hidden = true;
+  live.power = live.cad = live.speed = null; if (!ble.hrOn) live.hr = null;
+  setChips(); renderLive();
+}
+
+/* ---------- geluid en scherm ---------- */
+let ac = null, wl = null;
+function ensureAudio() {
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); } catch (e) {}
+}
+function beep(f, d, at) {
+  if (!ac || !$('#sound').checked) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.frequency.value = f; o.connect(g); g.connect(ac.destination);
+  const t0 = ac.currentTime + (at || 0);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+  o.start(t0); o.stop(t0 + d + 0.02);
+}
+async function lockScreen() { try { wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
+function unlockScreen() { try { if (wl) wl.release(); } catch (e) {} wl = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && running) lockScreen(); });
+
+/* ---------- workout-verloop ---------- */
+async function start() {
+  if (!W.segs.length) { msg('Deze workout heeft geen geldige blokken.'); return; }
+  if (!ble.ready && !demo.on) { msg('Verbind eerst je KICKR, of kies Demo.'); return; }
+  ensureAudio(); lockScreen();
+  $('#summary').hidden = true;
+  running = true; paused = false; t = 0; idx = 0; log = []; startedAt = new Date();
+  lastSent = null; lastLogSec = -1; lastBeepSec = -1; lastTick = performance.now();
+  $('#wtext').disabled = true; $('#preset').disabled = true;
+  try { await trStart(); } catch (e) { msg('Start mislukt: ' + e.message); }
+  await applyTarget(true);
+  beep(660, .15); beep(880, .25, .2);
+  render(); renderControls(); draw();
+}
+async function togglePause() {
+  if (!running) return;
+  if (paused) {
+    paused = false; lastTick = performance.now();
+    try { await trStart(); } catch (e) { msg('Hervatten mislukt: ' + e.message); paused = true; return; }
+    await applyTarget(true);
+  } else {
+    paused = true;
+    try { await trPause(); } catch (e) {}
+  }
+  renderControls(); render();
+}
+function skip() {
+  if (!running) return;
+  const next = W.starts[idx + 1];
+  if (next === undefined || next >= W.total) { finish(); return; }
+  t = next; idx = idx + 1; lastBeepSec = -1;
+  beep(660, .1); beep(880, .15, .15);
+  applyTarget(true); render(); draw();
+}
+let stopArmed = null;
+function stopPress() {
+  const b = $('#btnStop');
+  if (!stopArmed) {
+    b.textContent = 'Zeker stoppen?';
+    stopArmed = setTimeout(() => { stopArmed = null; b.textContent = 'Stop'; }, 3000);
+    return;
+  }
+  clearTimeout(stopArmed); stopArmed = null; b.textContent = 'Stop';
+  finish();
+}
+async function finish() {
+  if (!running) return;
+  running = false; paused = false;
+  try { await trStop(); } catch (e) {}
+  unlockScreen();
+  beep(880, .15); beep(880, .15, .2); beep(1175, .3, .4);
+  $('#wtext').disabled = false; $('#preset').disabled = false;
+  showSummary();
+  t = 0; idx = 0; lastSent = null;
+  render(); renderControls(); draw();
+}
+function tick() {
+  const now = performance.now();
+  let dt = (now - lastTick) / 1000; lastTick = now;
+  if (!running || paused) return;
+  dt = Math.min(dt, 3) * (demo.on && $('#fast').checked ? 10 : 1);
+  t += dt;
+  if (t >= W.total) { finish(); return; }
+  const i = segIndexAt(t);
+  if (i !== idx) { idx = i; lastBeepSec = -1; beep(660, .1); beep(880, .15, .15); }
+  const rem = Math.ceil(W.starts[idx] + W.segs[idx].dur - t);
+  if (rem <= 3 && rem >= 1 && rem !== lastBeepSec && !(demo.on && $('#fast').checked)) { lastBeepSec = rem; beep(600, .08); }
+  const sec = Math.floor(t);
+  while (lastLogSec < sec) {
+    lastLogSec++;
+    log.push({ t: lastLogSec, power: live.power, cad: live.cad, hr: live.hr, speed: live.speed });
+  }
+  applyTarget(false);
+  render(); draw();
+}
+setInterval(tick, 250);
+
+/* ---------- weergave ---------- */
+function setChips() {
+  const on = ble.ready || demo.on;
+  $('#chipTrainer').classList.toggle('on', on);
+  $('#trainerTxt').textContent = demo.on ? 'demo' : (ble.ready ? (ble.dev && ble.dev.name ? ble.dev.name : 'verbonden') : (ble.dev ? 'verbroken' : 'niet verbonden'));
+  $('#chipHr').classList.toggle('on', ble.hrOn);
+  $('#hrTxt').textContent = ble.hrOn ? 'verbonden' : 'geen band';
+  $('#btnConnect').textContent = ble.ready ? 'Verbonden' : (ble.dev ? 'Opnieuw verbinden' : 'Verbind KICKR');
+  $('#btnConnect').classList.toggle('primary', !on);
+  $('#btnDemo').textContent = demo.on ? 'Stop demo' : 'Demo';
+}
+function renderLive() {
+  $('#vPower').textContent = live.power == null ? '—' : Math.round(live.power);
+  $('#vCad').textContent = live.cad == null ? '—' : Math.round(live.cad);
+  $('#vHr').textContent = live.hr == null ? '—' : Math.round(live.hr);
+  $('#vSpeed').innerHTML = live.speed ? live.speed.toFixed(1) + ' km/u' : '&nbsp;';
+}
+function render() {
+  renderLive();
+  const n = W.segs.length;
+  $('#vTotal').textContent = fmt(t);
+  $('#vTotalOf').textContent = 'van ' + fmt(W.total);
+  $('#biasVal').textContent = (bias >= 0 ? '+' : '−') + Math.abs(bias) + '%';
+  if (!n) { $('#vSegName').textContent = 'Workout'; $('#vSegTime').textContent = '0:00'; $('#vTarget').textContent = 'doel —'; return; }
+  const s = W.segs[Math.min(idx, n - 1)];
+  const nxt = W.segs[idx + 1];
+  const pct = running ? pctAt(s, t - W.starts[idx]) : s.lo;
+  const z = zoneOf(pct);
+  const zEl = $('#vZone'); zEl.className = 'zone ' + z[1]; zEl.textContent = 'Z' + z[1].slice(1) + ' ' + z[2];
+  const nextText = (x) => fmt(x.dur) + ' op ' + Math.round(x.lo * (1 + bias / 100)) + (x.hi !== x.lo ? '-' + Math.round(x.hi * (1 + bias / 100)) : '') + '% (' + Math.round(x.lo * (1 + bias / 100) * ftp / 100) + ' W)';
+  if (running) {
+    $('#vSegName').textContent = (s.label || z[2]) + (paused ? ' · gepauzeerd' : '');
+    $('#vSegTime').textContent = fmt(Math.ceil(W.starts[idx] + s.dur - t));
+    $('#vTarget').textContent = 'doel ' + targetW() + ' W · ' + Math.round(pct * (1 + bias / 100)) + '% FTP';
+    $('#vNext').textContent = nxt ? 'Hierna: ' + nextText(nxt) : 'Laatste blok';
+  } else {
+    $('#vSegName').textContent = 'Workout';
+    $('#vSegTime').textContent = fmt(W.total);
+    $('#vTarget').textContent = 'doel ' + Math.round(s.lo * (1 + bias / 100) * ftp / 100) + ' W bij start';
+    $('#vNext').textContent = 'Eerst: ' + nextText(s);
+  }
+}
+function renderControls() {
+  $('#btnStart').hidden = running;
+  $('#btnPause').hidden = !running; $('#btnSkip').hidden = !running; $('#btnStop').hidden = !running;
+  $('#btnPause').textContent = paused ? 'Hervat' : 'Pauze';
+  $('#btnPause').classList.toggle('primary', paused);
+}
+
+/* ---------- grafiek ---------- */
+function draw() {
+  const c = $('#chart'); if (!c) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight; if (!w || !h) return;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  const css = getComputedStyle(document.documentElement);
+  const col = n => css.getPropertyValue(n).trim();
+  const padL = 40, padR = 8, padT = 10, padB = 22;
+  const pw = w - padL - padR, ph = h - padT - padB;
+  g.font = '12px ' + (css.getPropertyValue('--font-body') || 'sans-serif');
+  if (!W.segs.length || !W.total) { g.fillStyle = col('--muted'); g.fillText('Geen geldige workout', padL, h / 2); return; }
+  let maxPct = 130;
+  W.segs.forEach(s => { maxPct = Math.max(maxPct, s.lo * 1.12, s.hi * 1.12); });
+  const maxW = maxPct * ftp / 100;
+  const X = s => padL + s / W.total * pw;
+  const Y = p => padT + ph - Math.min(p, maxPct) / maxPct * ph;
+  // raster in watt
+  const step = maxW > 400 ? 100 : 50;
+  g.lineWidth = 1; g.textAlign = 'right'; g.textBaseline = 'middle';
+  for (let wv = 0; wv <= maxW; wv += step) {
+    const y = Y(wv / ftp * 100);
+    g.strokeStyle = col('--line'); g.beginPath(); g.moveTo(padL, y); g.lineTo(w - padR, y); g.stroke();
+    g.fillStyle = col('--muted'); g.fillText(String(wv), padL - 6, y);
+  }
+  // blokken
+  const drawBars = alpha => {
+    W.segs.forEach((s, i) => {
+      const x0 = X(W.starts[i]), x1 = X(W.starts[i] + s.dur);
+      const z = zoneOf((s.lo + s.hi) / 2);
+      g.globalAlpha = alpha; g.fillStyle = col('--' + z[1]);
+      g.beginPath(); g.moveTo(x0, Y(0)); g.lineTo(x0, Y(s.lo)); g.lineTo(x1, Y(s.hi)); g.lineTo(x1, Y(0)); g.closePath(); g.fill();
+    });
+    g.globalAlpha = 1;
+  };
+  drawBars(0.38);
+  const xt = X(Math.min(t, W.total));
+  if (running || t > 0) {
+    g.save(); g.beginPath(); g.rect(padL, 0, Math.max(0, xt - padL), h); g.clip(); drawBars(0.95); g.restore();
+  }
+  // FTP-lijn
+  g.setLineDash([5, 4]); g.strokeStyle = col('--fg'); g.globalAlpha = .55;
+  g.beginPath(); g.moveTo(padL, Y(100)); g.lineTo(w - padR, Y(100)); g.stroke();
+  g.setLineDash([]); g.globalAlpha = 1;
+  g.textAlign = 'left'; g.textBaseline = 'bottom'; g.fillStyle = col('--fg');
+  g.fillText('FTP ' + ftp + ' W', padL + 4, Y(100) - 3);
+  // gereden vermogen
+  if (log.length > 1) {
+    g.strokeStyle = col('--fg'); g.lineWidth = 1.8; g.lineJoin = 'round'; g.beginPath();
+    let started = false;
+    log.forEach(l => {
+      if (l.power == null) return;
+      const x = X(l.t), y = Y(l.power / ftp * 100);
+      if (!started) { g.moveTo(x, y); started = true; } else g.lineTo(x, y);
+    });
+    g.stroke();
+  }
+  // positie
+  if (running) { g.strokeStyle = col('--accent'); g.lineWidth = 2; g.beginPath(); g.moveTo(xt, padT); g.lineTo(xt, padT + ph); g.stroke(); }
+  // tijdas
+  const tickStep = W.total > 5400 ? 900 : (W.total > 1800 ? 600 : 300);
+  g.fillStyle = col('--muted'); g.textAlign = 'center'; g.textBaseline = 'top';
+  for (let s = 0; s <= W.total; s += tickStep) g.fillText(Math.round(s / 60) + "'", Math.min(Math.max(X(s), padL + 6), w - padR - 6), padT + ph + 5);
+}
+window.addEventListener('resize', draw);
+
+/* ---------- samenvatting en export ---------- */
+function summaryStats() {
+  const p = log.map(l => l.power).filter(v => v != null);
+  const hr = log.map(l => l.hr).filter(v => v != null && v > 0);
+  const cad = log.map(l => l.cad).filter(v => v != null && v > 0);
+  const avg = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : null;
+  return {
+    dur: log.length, avgP: avg(p), maxP: p.length ? Math.max(...p) : null,
+    avgHr: avg(hr), maxHr: hr.length ? Math.max(...hr) : null, avgCad: avg(cad),
+    kj: Math.round(p.reduce((x, y) => x + y, 0) / 1000)
+  };
+}
+function showSummary() {
+  if (log.length < 10) { $('#summary').hidden = true; return; }
+  const s = summaryStats();
+  const cell = (l, v, u) => '<div><span class="lab">' + l + '</span><b>' + (v == null ? '—' : v) + '</b>' + (u || '') + '</div>';
+  $('#stats').innerHTML =
+    cell('Duur', fmt(s.dur), '') + cell('Gem. vermogen', s.avgP, ' W') + cell('Max. vermogen', s.maxP, ' W') +
+    cell('Energie', s.kj, ' kJ') + cell('Gem. hartslag', s.avgHr, ' bpm') + cell('Gem. cadans', s.avgCad, ' rpm');
+  $('#summary').hidden = false;
+}
+function buildTcx() {
+  const iso = ms => new Date(ms).toISOString();
+  const t0 = startedAt.getTime();
+  let dist = 0;
+  const pts = log.map(l => {
+    dist += (l.speed || 0) / 3.6;
+    return '<Trackpoint><Time>' + iso(t0 + l.t * 1000) + '</Time><DistanceMeters>' + dist.toFixed(1) + '</DistanceMeters>' +
+      (l.hr ? '<HeartRateBpm><Value>' + Math.round(l.hr) + '</Value></HeartRateBpm>' : '') +
+      (l.cad != null ? '<Cadence>' + Math.round(l.cad) + '</Cadence>' : '') +
+      '<Extensions><ns3:TPX><ns3:Watts>' + Math.max(0, Math.round(l.power || 0)) + '</ns3:Watts></ns3:TPX></Extensions></Trackpoint>';
+  }).join('');
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><Activities><Activity Sport="Biking"><Id>' + iso(t0) +
+    '</Id><Lap StartTime="' + iso(t0) + '"><TotalTimeSeconds>' + log.length + '</TotalTimeSeconds><DistanceMeters>' + dist.toFixed(1) +
+    '</DistanceMeters><Calories>0</Calories><Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod><Track>' + pts + '</Track></Lap></Activity></Activities></TrainingCenterDatabase>';
+}
+function downloadTcx() {
+  try {
+    const blob = new Blob([buildTcx()], { type: 'application/vnd.garmin.tcx+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'binnenrit-' + startedAt.toISOString().slice(0, 10) + '.tcx';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch (e) { msg('Downloaden lukt hier niet. Gebruik Kopieer TCX.'); }
+}
+async function copyTcx() {
+  try { await navigator.clipboard.writeText(buildTcx()); msg('TCX gekopieerd. Plak het in een bestand met de extensie .tcx.'); }
+  catch (e) { msg('Kopiëren is geweigerd door de browser.'); }
+}
+
+/* ---------- knoppen ---------- */
+$('#btnConnect').addEventListener('click', connectTrainer);
+$('#btnHr').addEventListener('click', connectHr);
+$('#btnDemo').addEventListener('click', () => { if (demo.on) { if (running) finish(); demoStop(); msg(''); } else demoStart(); });
+$('#btnStart').addEventListener('click', start);
+$('#btnPause').addEventListener('click', togglePause);
+$('#btnSkip').addEventListener('click', skip);
+$('#btnStop').addEventListener('click', stopPress);
+$('#biasDown').addEventListener('click', () => { bias = Math.max(-50, bias - 5); if (running) applyTarget(true); render(); });
+$('#biasUp').addEventListener('click', () => { bias = Math.min(50, bias + 5); if (running) applyTarget(true); render(); });
+$('#btnTcx').addEventListener('click', downloadTcx);
+$('#btnCopy').addEventListener('click', copyTcx);
+$('#btnClose').addEventListener('click', () => { $('#summary').hidden = true; });
+
+/* ---------- start ---------- */
+if (!('bluetooth' in navigator)) {
+  $('#btnConnect').disabled = true; $('#btnHr').disabled = true;
+  msg('Deze browser ondersteunt geen Web Bluetooth. Open de pagina op de iPad in de Bluefy-browser. Met Demo kun je de app al uitproberen.');
+}
+initPresets(); setChips(); renderControls(); render(); draw();
+</script>
+</body>
+</html>
