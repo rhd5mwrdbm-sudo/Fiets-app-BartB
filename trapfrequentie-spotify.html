@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trapfrequentie Muziek</title>
+<style>
+  :root { --bg:#111418; --card:#1c2128; --text:#e8eaed; --muted:#8b949e; --accent:#1db954; --line:#2d333b; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--text); font-family:-apple-system,system-ui,sans-serif; }
+  main { max-width:760px; margin:0 auto; }
+  h1 { font-size:1.3rem; margin:0 0 12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:14px; }
+  label { display:block; font-size:.85rem; color:var(--muted); margin-bottom:4px; }
+  input[type=text] { width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:#0d1117; color:var(--text); font-size:1rem; }
+  button { font:inherit; cursor:pointer; border:0; border-radius:10px; }
+  .primary { background:var(--accent); color:#000; padding:10px 16px; font-weight:600; }
+  .ghost { background:transparent; color:var(--muted); border:1px solid var(--line); padding:8px 12px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+  .rpm { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; }
+  .rpm.active { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset; }
+  .rpm button.go { width:100%; background:#262d36; color:var(--text); font-size:2rem; font-weight:700; padding:18px 0; }
+  .rpm.active button.go { background:var(--accent); color:#000; }
+  .rpm button.go small { display:block; font-size:.75rem; font-weight:400; opacity:.8; }
+  .rpm input { margin-top:10px; font-size:.85rem; }
+  #status { min-height:1.4em; font-size:.9rem; color:var(--muted); }
+  #status.err { color:#ff7b72; }
+  code { background:#0d1117; padding:2px 6px; border-radius:6px; font-size:.85rem; word-break:break-all; }
+  ol { padding-left:20px; margin:6px 0; color:var(--muted); font-size:.9rem; line-height:1.5; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🚴 Trapfrequentie → Spotify</h1>
+
+  <div class="card" id="setup">
+    <label for="clientId">Spotify Client ID</label>
+    <input type="text" id="clientId" placeholder="Plak hier je Client ID" autocomplete="off">
+    <p style="margin:10px 0 4px;font-size:.9rem;color:var(--muted)">Redirect URI die je in het Spotify Developer Dashboard moet toevoegen:</p>
+    <code id="redirect"></code>
+    <ol>
+      <li>Ga naar developer.spotify.com/dashboard en maak een app.</li>
+      <li>Voeg bovenstaande Redirect URI exact zo toe (kies "Web API").</li>
+      <li>Plak de Client ID hier en tik op Verbinden.</li>
+    </ol>
+    <div class="row" style="margin-top:10px">
+      <button class="primary" id="connect">Verbinden met Spotify</button>
+      <button class="ghost hidden" id="logout">Uitloggen</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <label style="margin:0"><input type="checkbox" id="shuffle" checked> Shuffle aan</label>
+      <button class="ghost" id="pause" style="margin-left:auto">⏸ Pauze</button>
+    </div>
+    <div id="status" style="margin-top:8px"></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+</main>
+
+<script>
+const RPMS = [70, 80, 90, 100, 110, 120];
+const SCOPES = "user-modify-playback-state user-read-playback-state";
+const REDIRECT = location.origin + location.pathname;
+const $ = id => document.getElementById(id);
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+  del: k => { try { localStorage.removeItem(k); } catch {} }
+};
+
+function setStatus(msg, err) { const s = $("status"); s.textContent = msg; s.className = err ? "err" : ""; }
+
+// ---------- PKCE ----------
+function rand(len) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  const arr = crypto.getRandomValues(new Uint8Array(len));
+  return Array.from(arr, x => chars[x % chars.length]).join("");
+}
+async function challenge(verifier) {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+async function login() {
+  const id = $("clientId").value.trim();
+  if (!id) return setStatus("Vul eerst je Client ID in.", true);
+  store.set("client_id", id);
+  const verifier = rand(64);
+  store.set("verifier", verifier);
+  const p = new URLSearchParams({
+    response_type: "code", client_id: id, scope: SCOPES, redirect_uri: REDIRECT,
+    code_challenge_method: "S256", code_challenge: await challenge(verifier)
+  });
+  location.href = "https://accounts.spotify.com/authorize?" + p;
+}
+async function tokenRequest(params) {
+  const r = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: store.get("client_id"), ...params })
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error_description || d.error || "Token fout");
+  store.set("access_token", d.access_token);
+  store.set("expires_at", String(Date.now() + (d.expires_in - 60) * 1000));
+  if (d.refresh_token) store.set("refresh_token", d.refresh_token);
+}
+async function handleRedirect() {
+  const q = new URLSearchParams(location.search);
+  if (q.get("error")) { setStatus("Inloggen mislukt: " + q.get("error"), true); history.replaceState({}, "", REDIRECT); return; }
+  const code = q.get("code");
+  if (!code) return;
+  try {
+    await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: REDIRECT, code_verifier: store.get("verifier") });
+    setStatus("Verbonden met Spotify.");
+  } catch (e) { setStatus(e.message, true); }
+  history.replaceState({}, "", REDIRECT);
+}
+async function getToken() {
+  if (!store.get("access_token")) throw new Error("Nog niet verbonden met Spotify.");
+  if (Date.now() > Number(store.get("expires_at") || 0)) {
+    await tokenRequest({ grant_type: "refresh_token", refresh_token: store.get("refresh_token") });
+  }
+  return store.get("access_token");
+}
+
+// ---------- Spotify API ----------
+async function api(path, method, body) {
+  const token = await getToken();
+  return fetch("https://api.spotify.com/v1" + path, {
+    method,
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined
+  });
+}
+function toUri(link) {
+  link = (link || "").trim();
+  let m = link.match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(playlist|album|artist)\/([A-Za-z0-9]+)/);
+  if (m) return `spotify:${m[1]}:${m[2]}`;
+  m = link.match(/^spotify:(playlist|album|artist):([A-Za-z0-9]+)$/);
+  return m ? link : null;
+}
+async function play(rpm) {
+  const uri = toUri(store.get("pl_" + rpm));
+  if (!uri) return setStatus(`Plak eerst een Spotify-link bij ${rpm} rpm.`, true);
+  try {
+    if ($("shuffle").checked !== undefined) await api("/me/player/shuffle?state=" + $("shuffle").checked, "PUT");
+    let r = await api("/me/player/play", "PUT", { context_uri: uri });
+    if (r.status === 404) {
+      // geen actief apparaat: probeer het eerste beschikbare apparaat
+      const dr = await api("/me/player/devices", "GET");
+      const devs = (await dr.json()).devices || [];
+      if (!devs.length) return setStatus("Geen Spotify-apparaat gevonden. Open de Spotify-app en start even een nummer.", true);
+      const dev = devs.find(d => d.is_active) || devs[0];
+      r = await api("/me/player/play?device_id=" + dev.id, "PUT", { context_uri: uri });
+    }
+    if (r.status === 403) return setStatus("Spotify Premium is nodig om afspelen via de API te bedienen.", true);
+    if (r.status === 401) { store.del("access_token"); return setStatus("Sessie verlopen, verbind opnieuw.", true); }
+    if (!r.ok && r.status !== 204) return setStatus("Fout bij afspelen (" + r.status + ").", true);
+    document.querySelectorAll(".rpm").forEach(el => el.classList.toggle("active", el.dataset.rpm == rpm));
+    setStatus(`▶ Speelt nu: ${rpm} rpm`);
+  } catch (e) { setStatus(e.message, true); }
+}
+async function pause() {
+  try { await api("/me/player/pause", "PUT"); setStatus("Gepauzeerd."); document.querySelectorAll(".rpm").forEach(el => el.classList.remove("active")); }
+  catch (e) { setStatus(e.message, true); }
+}
+
+// ---------- UI ----------
+function build() {
+  $("grid").innerHTML = RPMS.map(r => `
+    <div class="rpm" data-rpm="${r}">
+      <button class="go" data-go="${r}">${r}<small>rpm · ~${r * 2} BPM</small></button>
+      <input type="text" data-pl="${r}" placeholder="Spotify playlist-link voor ${r} rpm" value="${(store.get("pl_" + r) || "").replace(/"/g, "&quot;")}">
+    </div>`).join("");
+  $("grid").addEventListener("click", e => { const b = e.target.closest("[data-go]"); if (b) play(b.dataset.go); });
+  $("grid").addEventListener("change", e => { const i = e.target.closest("[data-pl]"); if (i) store.set("pl_" + i.dataset.pl, i.value.trim()); });
+}
+
+$("redirect").textContent = REDIRECT;
+$("clientId").value = store.get("client_id") || "";
+$("connect").onclick = login;
+$("pause").onclick = pause;
+$("logout").onclick = () => { ["access_token", "refresh_token", "expires_at"].forEach(store.del); $("logout").classList.add("hidden"); setStatus("Uitgelogd."); };
+build();
+handleRedirect().then(() => {
+  if (store.get("access_token")) { $("logout").classList.remove("hidden"); $("connect").textContent = "Opnieuw verbinden"; }
+});
+</script>
+</body>
+</html>

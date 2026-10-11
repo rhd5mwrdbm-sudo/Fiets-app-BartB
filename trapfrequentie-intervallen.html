@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interval Trainer met Muziek</title>
+<style>
+  :root { --bg:#111418; --card:#1c2128; --text:#e8eaed; --muted:#8b949e; --accent:#1db954; --line:#2d333b; --warn:#f0a020; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--text); font-family:-apple-system,system-ui,sans-serif; }
+  main { max-width:860px; margin:0 auto; }
+  h1 { font-size:1.3rem; margin:0 0 12px; }
+  h2 { font-size:1.05rem; margin:0 0 10px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:14px; }
+  label { display:block; font-size:.8rem; color:var(--muted); margin-bottom:4px; }
+  input[type=text], input[type=number], select { width:100%; padding:9px; border-radius:8px; border:1px solid var(--line); background:#0d1117; color:var(--text); font-size:1rem; }
+  button { font:inherit; cursor:pointer; border:0; border-radius:10px; color:var(--text); }
+  .primary { background:var(--accent); color:#000; padding:10px 16px; font-weight:600; }
+  .ghost { background:transparent; color:var(--muted); border:1px solid var(--line); padding:8px 12px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .hidden { display:none !important; }
+  code { background:#0d1117; padding:2px 6px; border-radius:6px; font-size:.85rem; word-break:break-all; }
+  details { margin-bottom:14px; }
+  details > summary { cursor:pointer; padding:12px 14px; background:var(--card); border:1px solid var(--line); border-radius:14px; font-weight:600; list-style:none; }
+  details[open] > summary { border-bottom-left-radius:0; border-bottom-right-radius:0; }
+  details > .inner { background:var(--card); border:1px solid var(--line); border-top:0; border-radius:0 0 14px 14px; padding:14px; }
+  ol { padding-left:20px; margin:6px 0; color:var(--muted); font-size:.9rem; line-height:1.5; }
+  #status { min-height:1.3em; font-size:.9rem; color:var(--muted); }
+  #status.err { color:#ff7b72; }
+
+  /* player */
+  #player { text-align:center; }
+  #blockName { font-size:1rem; color:var(--muted); }
+  #clock { font-size:4.5rem; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .targets { display:flex; justify-content:center; gap:28px; margin:8px 0 12px; }
+  .targets div { font-size:2rem; font-weight:700; }
+  .targets small { display:block; font-size:.75rem; font-weight:400; color:var(--muted); }
+  #next { color:var(--muted); font-size:.9rem; min-height:1.3em; }
+  .bar { height:8px; background:#0d1117; border-radius:6px; overflow:hidden; margin:10px 0; }
+  .bar > div { height:100%; background:var(--accent); width:0; }
+  .ctrl { display:flex; gap:8px; justify-content:center; margin-top:10px; flex-wrap:wrap; }
+  .ctrl button { padding:12px 20px; background:#262d36; font-weight:600; }
+  .ctrl .start { background:var(--accent); color:#000; }
+  #player.run { border-color:var(--accent); }
+
+  /* editor */
+  .blk { display:grid; grid-template-columns: 1.6fr .8fr .8fr .8fr auto; gap:6px; align-items:end; padding:8px 0; border-top:1px solid var(--line); }
+  .blk .w { font-size:.8rem; color:var(--muted); padding-bottom:10px; white-space:nowrap; }
+  .blk .acts { display:flex; gap:4px; }
+  .blk .acts button { background:#262d36; padding:8px 10px; }
+  .blk.cur { background:rgba(29,185,84,.12); }
+  .pl-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; }
+  @media (max-width:640px){ .blk { grid-template-columns:1fr 1fr 1fr; } .blk > :first-child { grid-column:1 / -1; } #clock { font-size:3.6rem; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>🚴 Interval Trainer met Muziek</h1>
+
+  <!-- Player -->
+  <div class="card" id="player">
+    <div id="blockName">Klaar om te starten</div>
+    <div id="clock">00:00</div>
+    <div class="targets">
+      <div><span id="tWatt">–</span><small>watt</small></div>
+      <div><span id="tRpm">–</span><small>rpm</small></div>
+      <div><span id="tBpm">–</span><small>muziek BPM</small></div>
+    </div>
+    <div class="bar"><div id="barBlock"></div></div>
+    <div id="next"></div>
+    <div class="bar" style="height:5px"><div id="barTotal" style="background:#4c8dff"></div></div>
+    <div style="font-size:.8rem;color:var(--muted)" id="totalTxt"></div>
+    <div class="ctrl">
+      <button class="start" id="btnStart">▶ Start</button>
+      <button id="btnPause" class="hidden">⏸ Pauze</button>
+      <button id="btnSkip" class="hidden">⏭ Volgend blok</button>
+      <button id="btnStop" class="hidden">⏹ Stop</button>
+    </div>
+    <div id="status" style="margin-top:10px"></div>
+  </div>
+
+  <!-- Workout -->
+  <div class="card">
+    <h2>Training</h2>
+    <div class="row" style="margin-bottom:8px">
+      <div style="width:110px"><label for="ftp">FTP (watt)</label><input type="number" id="ftp" min="50" max="600" value="230"></div>
+      <div style="flex:1"></div>
+      <button class="ghost" id="presetLadder">Preset: cadansladder</button>
+      <button class="ghost" id="presetSS">Preset: sweetspot</button>
+    </div>
+    <div id="blocks"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost" id="addBlock">+ Blok toevoegen</button>
+      <span id="sum" style="color:var(--muted);font-size:.9rem;margin-left:auto"></span>
+    </div>
+  </div>
+
+  <!-- Playlists -->
+  <details>
+    <summary>🎵 Playlists per trapfrequentie</summary>
+    <div class="inner"><div class="pl-grid" id="plGrid"></div></div>
+  </details>
+
+  <!-- Spotify -->
+  <details id="setupDetails">
+    <summary>🔗 Spotify verbinden</summary>
+    <div class="inner">
+      <label for="clientId">Spotify Client ID</label>
+      <input type="text" id="clientId" placeholder="Plak hier je Client ID" autocomplete="off">
+      <p style="margin:10px 0 4px;font-size:.9rem;color:var(--muted)">Redirect URI voor het Spotify Developer Dashboard:</p>
+      <code id="redirect"></code>
+      <ol>
+        <li>Maak op developer.spotify.com/dashboard een app (Web API).</li>
+        <li>Voeg de Redirect URI hierboven exact zo toe.</li>
+        <li>Plak de Client ID en tik op Verbinden.</li>
+      </ol>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="connect">Verbinden met Spotify</button>
+        <button class="ghost hidden" id="logout">Uitloggen</button>
+        <label style="margin:0 0 0 auto"><input type="checkbox" id="shuffle" checked> Shuffle aan</label>
+      </div>
+    </div>
+  </details>
+</main>
+
+<script>
+const RPMS = [70, 80, 90, 100, 110, 120];
+const SCOPES = "user-modify-playback-state user-read-playback-state";
+const REDIRECT = location.origin + location.pathname;
+const $ = id => document.getElementById(id);
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+  del: k => { try { localStorage.removeItem(k); } catch {} }
+};
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+function setStatus(msg, err) { const s = $("status"); s.textContent = msg; s.className = err ? "err" : ""; }
+const fmt = sec => { sec = Math.max(0, Math.round(sec)); return String(Math.floor(sec/60)).padStart(2,"0") + ":" + String(sec%60).padStart(2,"0"); };
+function parseDur(t) {
+  t = String(t).trim();
+  let m = t.match(/^(\d+):([0-5]?\d)$/); if (m) return (+m[1])*60 + (+m[2]);
+  m = t.match(/^(\d+)$/); if (m) return (+m[1])*60;           // "5" = 5 minuten
+  return null;
+}
+
+/* ================= Spotify (PKCE) ================= */
+function rand(len) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  return Array.from(crypto.getRandomValues(new Uint8Array(len)), x => chars[x % chars.length]).join("");
+}
+async function challenge(v) {
+  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v));
+  return btoa(String.fromCharCode(...new Uint8Array(h))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+async function login() {
+  const id = $("clientId").value.trim();
+  if (!id) return setStatus("Vul eerst je Client ID in.", true);
+  store.set("client_id", id);
+  const verifier = rand(64); store.set("verifier", verifier);
+  const p = new URLSearchParams({ response_type:"code", client_id:id, scope:SCOPES, redirect_uri:REDIRECT,
+    code_challenge_method:"S256", code_challenge: await challenge(verifier) });
+  location.href = "https://accounts.spotify.com/authorize?" + p;
+}
+async function tokenRequest(params) {
+  const r = await fetch("https://accounts.spotify.com/api/token", {
+    method:"POST", headers:{ "Content-Type":"application/x-www-form-urlencoded" },
+    body:new URLSearchParams({ client_id: store.get("client_id"), ...params })
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error_description || d.error || "Token fout");
+  store.set("access_token", d.access_token);
+  store.set("expires_at", String(Date.now() + (d.expires_in - 60) * 1000));
+  if (d.refresh_token) store.set("refresh_token", d.refresh_token);
+}
+async function handleRedirect() {
+  const q = new URLSearchParams(location.search);
+  if (q.get("error")) { setStatus("Inloggen mislukt: " + q.get("error"), true); history.replaceState({}, "", REDIRECT); return; }
+  const code = q.get("code"); if (!code) return;
+  try {
+    await tokenRequest({ grant_type:"authorization_code", code, redirect_uri:REDIRECT, code_verifier:store.get("verifier") });
+    setStatus("Verbonden met Spotify.");
+  } catch (e) { setStatus(e.message, true); }
+  history.replaceState({}, "", REDIRECT);
+}
+async function getToken() {
+  if (!store.get("access_token")) throw new Error("Nog niet verbonden met Spotify.");
+  if (Date.now() > Number(store.get("expires_at") || 0))
+    await tokenRequest({ grant_type:"refresh_token", refresh_token:store.get("refresh_token") });
+  return store.get("access_token");
+}
+async function api(path, method, body) {
+  const token = await getToken();
+  return fetch("https://api.spotify.com/v1" + path, {
+    method, headers:{ Authorization:"Bearer " + token, "Content-Type":"application/json" },
+    body: body ? JSON.stringify(body) : undefined
+  });
+}
+function toUri(link) {
+  link = (link || "").trim();
+  let m = link.match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(playlist|album|artist)\/([A-Za-z0-9]+)/);
+  if (m) return `spotify:${m[1]}:${m[2]}`;
+  m = link.match(/^spotify:(playlist|album|artist):([A-Za-z0-9]+)$/);
+  return m ? link : null;
+}
+async function playRpm(rpm) {
+  const uri = toUri(store.get("pl_" + rpm));
+  if (!uri) { setStatus(`Geen playlist ingesteld voor ${rpm} rpm.`, true); return false; }
+  try {
+    await api("/me/player/shuffle?state=" + $("shuffle").checked, "PUT");
+    let r = await api("/me/player/play", "PUT", { context_uri: uri });
+    if (r.status === 404) {
+      const dr = await api("/me/player/devices", "GET");
+      const devs = (await dr.json()).devices || [];
+      if (!devs.length) { setStatus("Geen Spotify-apparaat gevonden. Open de Spotify-app en start even een nummer.", true); return false; }
+      const dev = devs.find(d => d.is_active) || devs[0];
+      r = await api("/me/player/play?device_id=" + dev.id, "PUT", { context_uri: uri });
+    }
+    if (r.status === 403) { setStatus("Spotify Premium is nodig om afspelen via de API te bedienen.", true); return false; }
+    if (r.status === 401) { store.del("access_token"); setStatus("Sessie verlopen, verbind opnieuw.", true); return false; }
+    if (!r.ok && r.status !== 204) { setStatus("Fout bij afspelen (" + r.status + ").", true); return false; }
+    setStatus(`♪ Muziek voor ${rpm} rpm speelt.`);
+    return true;
+  } catch (e) { setStatus(e.message, true); return false; }
+}
+async function spotifyPause() { try { await api("/me/player/pause", "PUT"); } catch {} }
+async function spotifyResume() { try { await api("/me/player/play", "PUT"); } catch {} }
+
+/* ================= Workout model ================= */
+const DEFAULT = [
+  { name:"Warming-up", sec:300, pct:55, rpm:90 },
+  { name:"Interval 1", sec:240, pct:95, rpm:90 },
+  { name:"Rust", sec:120, pct:55, rpm:80 },
+  { name:"Interval 2", sec:240, pct:95, rpm:90 },
+  { name:"Rust", sec:120, pct:55, rpm:80 },
+  { name:"Cooling-down", sec:300, pct:50, rpm:80 }
+];
+let workout = (() => { try { const w = JSON.parse(store.get("workout")); if (Array.isArray(w) && w.length) return w; } catch {} return structuredClone(DEFAULT); })();
+const save = () => store.set("workout", JSON.stringify(workout));
+const ftp = () => Math.max(1, Number($("ftp").value) || 230);
+const watt = b => Math.round(ftp() * b.pct / 100);
+
+function renderBlocks(curIdx = -1) {
+  $("blocks").innerHTML = workout.map((b, i) => `
+    <div class="blk ${i === curIdx ? "cur" : ""}" data-i="${i}">
+      <div><label>Naam</label><input type="text" data-f="name" value="${esc(b.name)}"></div>
+      <div><label>Duur (mm:ss)</label><input type="text" data-f="sec" value="${fmt(b.sec)}"></div>
+      <div><label>% FTP · <span class="w">${watt(b)} W</span></label><input type="number" data-f="pct" min="20" max="200" value="${b.pct}"></div>
+      <div><label>Cadans</label><select data-f="rpm">${RPMS.map(r => `<option ${r === b.rpm ? "selected" : ""}>${r}</option>`).join("")}</select></div>
+      <div class="acts"><button data-a="up">↑</button><button data-a="down">↓</button><button data-a="del">✕</button></div>
+    </div>`).join("");
+  const tot = workout.reduce((s, b) => s + b.sec, 0);
+  $("sum").textContent = `${workout.length} blokken · totaal ${fmt(tot)}`;
+}
+$("blocks").addEventListener("change", e => {
+  const row = e.target.closest(".blk"); if (!row) return;
+  const i = +row.dataset.i, f = e.target.dataset.f, b = workout[i];
+  if (f === "name") b.name = e.target.value;
+  if (f === "sec") { const s = parseDur(e.target.value); if (s && s > 0) b.sec = s; }
+  if (f === "pct") b.pct = Math.min(200, Math.max(20, Number(e.target.value) || b.pct));
+  if (f === "rpm") b.rpm = Number(e.target.value);
+  save(); renderBlocks();
+});
+$("blocks").addEventListener("click", e => {
+  const btn = e.target.closest("[data-a]"); if (!btn) return;
+  const i = +btn.closest(".blk").dataset.i, a = btn.dataset.a;
+  if (a === "del" && workout.length > 1) workout.splice(i, 1);
+  if (a === "up" && i > 0) [workout[i-1], workout[i]] = [workout[i], workout[i-1]];
+  if (a === "down" && i < workout.length - 1) [workout[i+1], workout[i]] = [workout[i], workout[i+1]];
+  save(); renderBlocks();
+});
+$("addBlock").onclick = () => { const l = workout[workout.length-1]; workout.push({ name:"Nieuw blok", sec:180, pct:l.pct, rpm:l.rpm }); save(); renderBlocks(); };
+$("ftp").addEventListener("change", () => { store.set("ftp", $("ftp").value); renderBlocks(run ? run.idx : -1); });
+$("presetLadder").onclick = () => {
+  workout = [{ name:"Warming-up", sec:300, pct:55, rpm:90 },
+    ...RPMS.map(r => ({ name:`Cadans ${r}`, sec:120, pct:75, rpm:r })),
+    { name:"Cooling-down", sec:300, pct:50, rpm:80 }];
+  save(); renderBlocks();
+};
+$("presetSS").onclick = () => {
+  workout = [{ name:"Warming-up", sec:480, pct:55, rpm:90 }];
+  for (let i = 1; i <= 3; i++) workout.push({ name:`Sweetspot ${i}`, sec:600, pct:90, rpm:90 }, { name:"Rust", sec:180, pct:50, rpm:80 });
+  workout.push({ name:"Cooling-down", sec:300, pct:50, rpm:80 });
+  save(); renderBlocks();
+};
+
+/* ================= Player ================= */
+let run = null, timer = null, audio = null, wake = null;
+function beep(freq = 880, ms = 160) {
+  try {
+    if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = freq; g.gain.value = 0.15; o.connect(g); g.connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + ms / 1000);
+  } catch {}
+}
+function showBlock(i) {
+  const b = workout[i];
+  $("blockName").textContent = `Blok ${i+1}/${workout.length} · ${b.name}`;
+  $("tWatt").textContent = watt(b); $("tRpm").textContent = b.rpm; $("tBpm").textContent = b.rpm * 2;
+  const n = workout[i+1];
+  $("next").textContent = n ? `Straks: ${n.name} · ${watt(n)} W · ${n.rpm} rpm` : "Laatste blok";
+  renderBlocks(i);
+}
+function startBlock(i) {
+  const b = workout[i];
+  run.idx = i; run.blockEnd = Date.now() + b.sec * 1000;
+  showBlock(i); beep(i === 0 ? 660 : 990, 250);
+  if (run.lastRpm !== b.rpm) { run.lastRpm = b.rpm; playRpm(b.rpm); }
+}
+function tick() {
+  if (!run || run.paused) return;
+  const b = workout[run.idx];
+  const rem = (run.blockEnd - Date.now()) / 1000;
+  if (rem <= 0) { run.idx + 1 < workout.length ? startBlock(run.idx + 1) : finish(); return; }
+  const sec = Math.ceil(rem);
+  if (sec <= 3 && sec !== run.lastBeep) { run.lastBeep = sec; beep(520, 100); }
+  $("clock").textContent = fmt(sec);
+  $("barBlock").style.width = (100 * (1 - rem / b.sec)) + "%";
+  const total = workout.reduce((s, x) => s + x.sec, 0);
+  const done = workout.slice(0, run.idx).reduce((s, x) => s + x.sec, 0) + (b.sec - rem);
+  $("barTotal").style.width = (100 * done / total) + "%";
+  $("totalTxt").textContent = `Totaal ${fmt(done)} / ${fmt(total)}`;
+}
+async function lockScreen() { try { wake = await navigator.wakeLock.request("screen"); } catch {} }
+function ui(running) {
+  $("btnStart").classList.toggle("hidden", running);
+  ["btnPause", "btnSkip", "btnStop"].forEach(id => $(id).classList.toggle("hidden", !running));
+  $("player").classList.toggle("run", running);
+}
+function start() {
+  run = { idx: 0, paused: false, lastRpm: null, lastBeep: null, blockEnd: 0 };
+  ui(true); lockScreen(); startBlock(0);
+  timer = setInterval(tick, 250);
+}
+function finish() {
+  beep(660, 400); stop(true);
+  $("blockName").textContent = "Training klaar 🎉";
+}
+function stop(done) {
+  clearInterval(timer); timer = null; run = null;
+  if (wake) { try { wake.release(); } catch {} wake = null; }
+  spotifyPause(); ui(false); renderBlocks();
+  if (!done) { $("blockName").textContent = "Gestopt"; $("clock").textContent = "00:00"; $("next").textContent = ""; }
+  $("barBlock").style.width = "0";
+}
+$("btnStart").onclick = start;
+$("btnStop").onclick = () => stop(false);
+$("btnSkip").onclick = () => { if (!run) return; run.idx + 1 < workout.length ? startBlock(run.idx + 1) : finish(); };
+$("btnPause").onclick = () => {
+  if (!run) return;
+  if (!run.paused) {
+    run.paused = true; run.remaining = run.blockEnd - Date.now();
+    $("btnPause").textContent = "▶ Hervat"; spotifyPause();
+  } else {
+    run.paused = false; run.blockEnd = Date.now() + run.remaining;
+    $("btnPause").textContent = "⏸ Pauze"; spotifyResume();
+  }
+};
+
+/* ================= Init ================= */
+$("plGrid").innerHTML = RPMS.map(r => `
+  <div><label>${r} rpm · ~${r*2} BPM</label>
+  <input type="text" data-pl="${r}" placeholder="Spotify playlist-link" value="${esc(store.get("pl_" + r) || "")}"></div>`).join("");
+$("plGrid").addEventListener("change", e => { const i = e.target.closest("[data-pl]"); if (i) store.set("pl_" + i.dataset.pl, i.value.trim()); });
+
+$("redirect").textContent = REDIRECT;
+$("clientId").value = store.get("client_id") || "";
+$("ftp").value = store.get("ftp") || 230;
+$("connect").onclick = login;
+$("logout").onclick = () => { ["access_token","refresh_token","expires_at"].forEach(store.del); $("logout").classList.add("hidden"); setStatus("Uitgelogd."); };
+renderBlocks();
+handleRedirect().then(() => {
+  if (store.get("access_token")) { $("logout").classList.remove("hidden"); $("connect").textContent = "Opnieuw verbinden"; }
+  else $("setupDetails").open = true;
+});
+</script>
+</body>
+</html>
